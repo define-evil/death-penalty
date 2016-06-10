@@ -1,25 +1,41 @@
-group 'de.randombyte'
-version 'v0.1'
-
-buildscript {
-    repositories {
-        mavenCentral()
-    }
-    dependencies {
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.0.2"
-    }
+plugins {
+    id "com.zoltu.kotlin" version "1.0.2"
+    id "com.qixalite.spongestart" version "1.4.5"
 }
 
-apply plugin: 'java'
-apply plugin: 'kotlin'
-
-sourceCompatibility = 1.5
+group "de.randombyte"
+version "v0.1"
 
 repositories {
-    mavenCentral()
+    jcenter()
+    maven { url "https://repo.spongepowered.org/maven/" }
+    maven { url 'https://jitpack.io' }
 }
 
+spongestart {
+    eula true
+}
+
+configurations {
+    shade
+    compile.extendsFrom shade
+}
+
+ext.spongeApiVersion = '4.1.0'
+ext.kotlinVersion = '1.0.2'
+
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib:1.0.2"
-    testCompile group: 'junit', name: 'junit', version: '4.11'
+    shade "org.jetbrains.kotlin:kotlin-runtime:$kotlinVersion"
+    shade "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+    compile "org.spongepowered:spongeapi:$spongeApiVersion"
+    kapt "org.spongepowered:spongeapi:$spongeApiVersion"
+}
+
+//https://forgegradle.readthedocs.org/en/latest/user-guide/shading/
+jar {
+    configurations.shade.each { dep ->
+        from(project.zipTree(dep)) {
+            exclude 'META-INF', 'META-INF/**'
+        }
+    }
 }
