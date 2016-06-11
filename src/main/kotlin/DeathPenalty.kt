@@ -76,6 +76,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
                     player.get(Keys.TOTAL_EXPERIENCE).ifPresent { xps ->
                         player.offer(Keys.TOTAL_EXPERIENCE, (xps * config.xpMultiplier).toInt())
                     }
+                    saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
                 }
     }
 
