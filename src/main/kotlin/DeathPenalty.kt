@@ -1,4 +1,3 @@
-
 import com.google.common.reflect.TypeToken
 import com.google.inject.Inject
 import ninja.leaping.configurate.commented.CommentedConfigurationNode
@@ -30,13 +29,14 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     @Listener
     fun onReload(event: GameReloadEvent) {
         config = loadConfig()
+        logger.info("Reloaded config of $NAME!")
     }
 
     private fun getRootNode() = configLoader.load()
     private fun loadConfig(): Config {
         val config = getRootNode().getValue(TypeToken.of(Config::class.java))
         return if (config != null) config else {
-            saveConfig(Config())
+            saveConfig(Config()) //Set default Config when no config was found
             loadConfig()
         }
     }
