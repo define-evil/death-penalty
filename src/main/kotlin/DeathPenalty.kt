@@ -6,12 +6,15 @@ import ninja.leaping.configurate.loader.ConfigurationLoader
 import org.slf4j.Logger
 import org.spongepowered.api.config.DefaultConfig
 import org.spongepowered.api.data.key.Keys
+import org.spongepowered.api.data.manipulator.mutable.PotionEffectData
+import org.spongepowered.api.effect.potion.PotionEffect
+import org.spongepowered.api.effect.potion.PotionEffectTypes
 import org.spongepowered.api.entity.EntityTypes
 import org.spongepowered.api.event.Listener
 import org.spongepowered.api.event.cause.Cause
 import org.spongepowered.api.event.cause.NamedCause
 import org.spongepowered.api.event.entity.DestructEntityEvent
-import org.spongepowered.api.event.entity.SpawnEntityEvent
+import org.spongepowered.api.event.entity.living.humanoid.player.RespawnPlayerEvent
 import org.spongepowered.api.event.game.GameReloadEvent
 import org.spongepowered.api.event.game.state.GameInitializationEvent
 import org.spongepowered.api.event.service.ChangeServiceProviderEvent
@@ -55,7 +58,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     }
 
     @Listener
-    fun onPlayerRespawn(event: SpawnEntityEvent) {
+    fun onPlayerRespawn(event: RespawnPlayerEvent) {
         val config = loadConfig()
 
         val doMoneyPunishment = lazy {
@@ -68,16 +71,20 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
             }
         }
 
-        event.entities
-                .filter { it.type.equals(EntityTypes.PLAYER) }
-                .filter { config.recentlyDiedPlayers.contains(it.uniqueId) }
-                .forEach { player ->
-                    if (doMoneyPunishment.value) doFinancialPunishment(player.uniqueId, config.moneyMultiplier)
-                    player.get(Keys.TOTAL_EXPERIENCE).ifPresent { xps ->
-                        player.offer(Keys.TOTAL_EXPERIENCE, (xps * config.xpMultiplier).toInt())
-                    }
-                    saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
+        val player = event.targetEntity
+
+        if (config.recentlyDiedPlayers.contains(player.uniqueId)) {
+            if (doMoneyPunishment.value) doFinancialPunishment(player.uniqueId, config.moneyMultiplier)
+            player.get(Keys.TOTAL_EXPERIENCE).ifPresent { xps ->
+                player.offer(Keys.TOTAL_EXPERIENCE, (xps * config.xpMultiplier).toInt())
+            }
+            if (config.timeWithBlindness > 0) {
+                player.getOrCreate(PotionEffectData::class.java).ifPresent {
+                    player.offer(it.addElement(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, config.timeWithBlindness)))
                 }
+            }
+            saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
+        }
     }
 
     private fun doFinancialPunishment(player: UUID, multiplier: Double) {
