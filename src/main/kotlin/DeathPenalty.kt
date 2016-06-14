@@ -7,7 +7,11 @@ import org.slf4j.Logger
 import org.spongepowered.api.Sponge
 import org.spongepowered.api.config.DefaultConfig
 import org.spongepowered.api.data.key.Keys
+import org.spongepowered.api.data.manipulator.mutable.PotionEffectData
+import org.spongepowered.api.effect.potion.PotionEffect
+import org.spongepowered.api.effect.potion.PotionEffectTypes
 import org.spongepowered.api.entity.EntityTypes
+import org.spongepowered.api.entity.living.player.Player
 import org.spongepowered.api.event.Listener
 import org.spongepowered.api.event.cause.Cause
 import org.spongepowered.api.event.cause.NamedCause
@@ -26,7 +30,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     companion object {
         const val ID = "deathpenalty"
         const val NAME = "DeathPenalty"
-        const val VERSION = "v0.1"
+        const val VERSION = "v0.1.1"
         const val AUTHOR = "RandomByte"
     }
 
@@ -77,11 +81,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
                 player.offer(Keys.TOTAL_EXPERIENCE, (xps * config.xpMultiplier).toInt())
             }
             if (config.timeWithBlindness > 0) {
-                //https://forums.spongepowered.org/t/offering-data-to-a-player/13136/6?u=randombyte
-                /*player.getOrCreate(PotionEffectData::class.java).ifPresent {
-                    player.offer(it.addElement(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, config.timeWithBlindness * 20)))
-                }*/
-                doBlindnessPunishement(player.uniqueId, config.timeWithBlindness)
+                doBlindnessPunishement(player, config.timeWithBlindness * 20)
             }
             saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
         }
@@ -94,8 +94,14 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         }
     }
 
-    private fun doBlindnessPunishement(player: UUID, seconds: Int) =
-            Sponge.getCommandManager().process(Sponge.getServer().console, "effect $player minecraft:blindness $seconds 1")
+    private fun doBlindnessPunishement(player: Player, seconds: Int) {
+        //https://forums.spongepowered.org/t/offering-data-to-a-player/13136/8?u=randombyte
+        Sponge.getScheduler().createTaskBuilder().execute { ->
+            player.getOrCreate(PotionEffectData::class.java).ifPresent {
+                player.offer(it.addElement(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, seconds)))
+            }
+        }.delayTicks(8).submit(this)
+    }
 
     private fun getRootNode() = configLoader.load()
     private fun loadConfig(): Config {

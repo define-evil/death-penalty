@@ -19,8 +19,8 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="deathpenalty_main" target="1.5" />
-      <module name="deathpenalty_test" target="1.5" />
+      <module name="deathpenalty_main" target="1.8" />
+      <module name="deathpenalty_test" target="1.8" />
     </bytecodeTargetLevel>
   </component>
 </project>
