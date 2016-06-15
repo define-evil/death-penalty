@@ -30,7 +30,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     companion object {
         const val ID = "deathpenalty"
         const val NAME = "DeathPenalty"
-        const val VERSION = "v0.1.1"
+        const val VERSION = "v0.1.2"
         const val AUTHOR = "RandomByte"
     }
 
@@ -63,8 +63,8 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     fun onPlayerRespawn(event: RespawnPlayerEvent) {
         val config = loadConfig()
 
-        val doMoneyPunishment = lazy {
-            if (config.moneyMultiplier == 1.0) false else {
+        val shouldDoFinancialPunishment = lazy {
+            if (config.moneyMultiplier < 0) false else {
                 if (economyService == null) {
                     logger.warn("$NAME can't perform financial punishment on just respawned player because there is no " +
                             "no economy plugin present!")
@@ -76,13 +76,9 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         val player = event.targetEntity
 
         if (config.recentlyDiedPlayers.contains(player.uniqueId)) {
-            if (doMoneyPunishment.value) doFinancialPunishment(player.uniqueId, config.moneyMultiplier)
-            player.get(Keys.TOTAL_EXPERIENCE).ifPresent { xps ->
-                player.offer(Keys.TOTAL_EXPERIENCE, (xps * config.xpMultiplier).toInt())
-            }
-            if (config.timeWithBlindness > 0) {
-                doBlindnessPunishement(player, config.timeWithBlindness * 20)
-            }
+            if (shouldDoFinancialPunishment.value) doFinancialPunishment(player.uniqueId, config.moneyMultiplier)
+            if (config.xpMultiplier >= 0) doXpPunishment(player, config.xpMultiplier)
+            if (config.timeWithBlindness > 0) doBlindnessPunishement(player, config.timeWithBlindness * 20)
             saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
         }
     }
@@ -94,8 +90,14 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         }
     }
 
+    private fun doXpPunishment(player: Player, multiplier: Double) {
+        player.get(Keys.TOTAL_EXPERIENCE).ifPresent { xps ->
+            player.offer(Keys.TOTAL_EXPERIENCE, (xps * multiplier).toInt())
+        }
+    }
+
     private fun doBlindnessPunishement(player: Player, seconds: Int) {
-        //https://forums.spongepowered.org/t/offering-data-to-a-player/13136/8?u=randombyte
+        //https://github.com/SpongePowered/SpongeCommon/issues/794
         Sponge.getScheduler().createTaskBuilder().execute { ->
             player.getOrCreate(PotionEffectData::class.java).ifPresent {
                 player.offer(it.addElement(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, seconds)))
