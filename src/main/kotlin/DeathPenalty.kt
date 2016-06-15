@@ -96,11 +96,11 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         }
     }
 
-    private fun doBlindnessPunishement(player: Player, seconds: Int) {
+    private fun doBlindnessPunishement(player: Player, ticks: Int) {
         //https://github.com/SpongePowered/SpongeCommon/issues/794
         Sponge.getScheduler().createTaskBuilder().execute { ->
             player.getOrCreate(PotionEffectData::class.java).ifPresent {
-                player.offer(it.addElement(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, seconds)))
+                player.offer(it.addElement(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, ticks)))
             }
         }.delayTicks(8).submit(this)
     }
