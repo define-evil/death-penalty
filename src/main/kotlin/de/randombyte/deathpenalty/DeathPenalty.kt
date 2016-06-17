@@ -29,7 +29,7 @@ import java.util.*
 class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(sharedRoot = true) val configLoader: ConfigurationLoader<CommentedConfigurationNode>) {
     companion object {
         const val ID = "deathpenalty"
-        const val NAME = "de.randombyte.deathpenalty.DeathPenalty"
+        const val NAME = "DeathPenalty"
         const val VERSION = "v0.1.2"
         const val AUTHOR = "RandomByte"
     }
@@ -38,12 +38,12 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
 
     @Listener
     fun onInit(event: GameInitializationEvent) {
-        logger.info("${NAME} loaded: ${VERSION}")
+        logger.info("$NAME loaded: $VERSION")
     }
 
     @Listener
     fun onReload(event: GameReloadEvent) {
-        logger.info("Reloaded config of ${NAME}!")
+        logger.info("Reloaded config of $NAME!")
     }
 
     @Listener
@@ -64,9 +64,9 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         val config = loadConfig()
 
         val shouldDoFinancialPunishment = lazy {
-            if (config.moneyMultiplier < 0) false else {
+            if (config.moneyReduction.equals("0%") || config.moneyReduction.equals("0")) false else {
                 if (economyService == null) {
-                    logger.warn("${NAME} can't perform financial punishment on just respawned player because there is no " +
+                    logger.warn("$NAME can't perform financial punishment on just respawned player because there is no " +
                             "no economy plugin present!")
                     false
                 } else true
@@ -76,16 +76,34 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         val player = event.targetEntity
 
         if (config.recentlyDiedPlayers.contains(player.uniqueId)) {
-            if (shouldDoFinancialPunishment.value) doFinancialPunishment(player.uniqueId, config.moneyMultiplier)
+            if (shouldDoFinancialPunishment.value) doFinancialPunishment(player.uniqueId, config.moneyReduction)
             if (config.xpMultiplier >= 0) doXpPunishment(player, config.xpMultiplier)
             if (config.timeWithBlindness > 0) doBlindnessPunishement(player, config.timeWithBlindness * 20)
             saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
         }
     }
 
-    private fun doFinancialPunishment(player: UUID, multiplier: Double) {
+    /**
+     * @param reductionString The string directly from the config. May contain a percent sign to be a relative value.
+     */
+    private fun doFinancialPunishment(player: UUID, reductionString: String) {
         economyService!!.getOrCreateAccount(player).ifPresent { account ->
-            val newBalance = account.getBalance(economyService!!.defaultCurrency) .multiply(BigDecimal(multiplier))
+            val oldBalance = account.getBalance(economyService!!.defaultCurrency)
+
+            fun String.isNumber() = this.toCharArray().all { it.isDigit() }
+            fun String.tryToNumber(func: (Int) -> BigDecimal): BigDecimal = if (this.isNumber()) {
+                func.invoke(this.toInt())
+            } else {
+                logger.error("Invalid moneyReduction config!")
+                oldBalance
+            }
+
+            val newBalance = if (reductionString.contains("%")) reductionString.split("%")[0].tryToNumber {
+                oldBalance.multiply(BigDecimal.valueOf(1 - (it / 100.0)))
+            } else reductionString.tryToNumber {
+                oldBalance.subtract(BigDecimal(reductionString))
+            }
+
             account.setBalance(economyService!!.defaultCurrency, newBalance, Cause.of(NamedCause.source(this)))
         }
     }
