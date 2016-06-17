@@ -64,55 +64,68 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     @Listener
     fun onPlayerRespawn(event: RespawnPlayerEvent) {
         val config = loadConfig()
-
-        val shouldDoFinancialPunishment = lazy {
-            if (config.moneyReduction.equals("0%") || config.moneyReduction.equals("0")) false else {
-                if (economyService == null) {
-                    logger.warn("$NAME can't perform financial punishment on just respawned player because there is no " +
-                            "no economy plugin present!")
-                    false
-                } else true
-            }
-        }
-
+        fun String.valueUnaffected() = equals(("0%")) || equals("0")
         val player = event.targetEntity
 
         if (config.recentlyDiedPlayers.contains(player.uniqueId)) {
-            if (shouldDoFinancialPunishment.value) doFinancialPunishment(player.uniqueId, config.moneyReduction)
-            if (config.xpMultiplier >= 0) doXpPunishment(player, config.xpMultiplier)
+
+            //Check if financial punishment can be done(economy plugin present?)
+            if (!config.moneyReduction.valueUnaffected()) {
+                if (economyService == null) {
+                    logger.warn("$NAME can't perform financial punishment on just respawned player because there is no " +
+                            "no economy plugin present!")
+                } else {
+                    //Now we can do it
+                    doFinancialPunishment(player.uniqueId, config.moneyReduction)
+                }
+            }
+
+            if (!config.xpReduction.valueUnaffected()) doXpPunishment(player, config.xpReduction)
             if (config.timeWithBlindness > 0) doBlindnessPunishement(player, config.timeWithBlindness * 20)
             saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
         }
     }
 
     /**
-     * @param reductionString The string directly from the config. May contain a percent sign to be a relative value.
+     * Calculates a new [BigDecimal] based on the [oldValue] which is manipulated by the [nodeValue]. It can be a fixed
+     * value or a relative value with a percent sign: e.g. "25", "40%". The [nodeKey] is for logging purposes on failure.
+     * [BigDecimal]s are used in this method to cover the use case of calculating the player's balance after he died.
+     */
+    private fun getNewValueAfterReduction(oldValue: BigDecimal, nodeKey: String, nodeValue: String): BigDecimal {
+        fun String.isNumber() = this.toCharArray().all { it.isDigit() }
+        fun String.tryToNumber(func: (Int) -> BigDecimal): BigDecimal = if (this.isNumber()) {
+            func.invoke(this.toInt())
+        } else {
+            logger.error("Invalid $nodeKey config!")
+            oldValue
+        }
+
+        val reductionString = nodeValue
+        return if (reductionString.contains("%")) reductionString.split("%")[0].tryToNumber {
+            oldValue.multiply(BigDecimal.valueOf(1 - (it / 100.0)))
+        } else reductionString.tryToNumber {
+            oldValue.subtract(BigDecimal(reductionString))
+        }
+    }
+
+    /**
+     * See [getNewValueAfterReduction] for more information on the formatting of the [reductionString].
      */
     private fun doFinancialPunishment(player: UUID, reductionString: String) {
         economyService!!.getOrCreateAccount(player).ifPresent { account ->
             val oldBalance = account.getBalance(economyService!!.defaultCurrency)
-
-            fun String.isNumber() = this.toCharArray().all { it.isDigit() }
-            fun String.tryToNumber(func: (Int) -> BigDecimal): BigDecimal = if (this.isNumber()) {
-                func.invoke(this.toInt())
-            } else {
-                logger.error("Invalid moneyReduction config!")
-                oldBalance
-            }
-
-            val newBalance = if (reductionString.contains("%")) reductionString.split("%")[0].tryToNumber {
-                oldBalance.multiply(BigDecimal.valueOf(1 - (it / 100.0)))
-            } else reductionString.tryToNumber {
-                oldBalance.subtract(BigDecimal(reductionString))
-            }
-
+            val newBalance = getNewValueAfterReduction(oldBalance, "moneyReduction", reductionString)
             account.setBalance(economyService!!.defaultCurrency, newBalance, Cause.of(NamedCause.source(this)))
         }
     }
 
-    private fun doXpPunishment(player: Player, multiplier: Double) {
+    /**
+     * See [getNewValueAfterReduction] for more information on the formatting of the [reductionString].
+     */
+    private fun doXpPunishment(player: Player, reductionString: String) {
         player.get(Keys.TOTAL_EXPERIENCE).ifPresent { xps ->
-            player.offer(Keys.TOTAL_EXPERIENCE, (xps * multiplier).toInt())
+            val newExperience = getNewValueAfterReduction(BigDecimal(xps), "xpReduction", reductionString)
+            player.offer(Keys.TOTAL_EXPERIENCE, newExperience.toInt())
         }
     }
 
