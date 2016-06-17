@@ -81,7 +81,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
             }
 
             if (!config.xpReduction.valueUnaffected()) doXpPunishment(player, config.xpReduction)
-            if (config.timeWithBlindness > 0) doBlindnessPunishement(player, config.timeWithBlindness * 20)
+            if (config.timeWithBlindness > 0) doBlindnessPunishment(player, config.timeWithBlindness * 20)
             saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
         }
     }
@@ -129,7 +129,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         }
     }
 
-    private fun doBlindnessPunishement(player: Player, ticks: Int) {
+    private fun doBlindnessPunishment(player: Player, ticks: Int) {
         //https://github.com/SpongePowered/SpongeCommon/issues/794
         Sponge.getScheduler().createTaskBuilder().execute { ->
             player.getOrCreate(PotionEffectData::class.java).ifPresent {
