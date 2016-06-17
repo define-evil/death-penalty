@@ -38,11 +38,13 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
 
     @Listener
     fun onInit(event: GameInitializationEvent) {
+        loadConfig()
         logger.info("$NAME loaded: $VERSION")
     }
 
     @Listener
     fun onReload(event: GameReloadEvent) {
+        loadConfig()
         logger.info("Reloaded config of $NAME!")
     }
 
