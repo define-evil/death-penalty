@@ -1,4 +1,4 @@
-
+package de.randombyte.deathpenalty
 import com.google.common.reflect.TypeToken
 import com.google.inject.Inject
 import ninja.leaping.configurate.commented.CommentedConfigurationNode
@@ -29,7 +29,7 @@ import java.util.*
 class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(sharedRoot = true) val configLoader: ConfigurationLoader<CommentedConfigurationNode>) {
     companion object {
         const val ID = "deathpenalty"
-        const val NAME = "DeathPenalty"
+        const val NAME = "de.randombyte.deathpenalty.DeathPenalty"
         const val VERSION = "v0.1.2"
         const val AUTHOR = "RandomByte"
     }
@@ -38,12 +38,12 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
 
     @Listener
     fun onInit(event: GameInitializationEvent) {
-        logger.info("$NAME loaded: $VERSION")
+        logger.info("${NAME} loaded: ${VERSION}")
     }
 
     @Listener
     fun onReload(event: GameReloadEvent) {
-        logger.info("Reloaded config of $NAME!")
+        logger.info("Reloaded config of ${NAME}!")
     }
 
     @Listener
@@ -66,7 +66,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         val shouldDoFinancialPunishment = lazy {
             if (config.moneyMultiplier < 0) false else {
                 if (economyService == null) {
-                    logger.warn("$NAME can't perform financial punishment on just respawned player because there is no " +
+                    logger.warn("${NAME} can't perform financial punishment on just respawned player because there is no " +
                             "no economy plugin present!")
                     false
                 } else true
@@ -109,7 +109,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     private fun loadConfig(): Config {
         val config = getRootNode().getValue(TypeToken.of(Config::class.java))
         return if (config != null) config else {
-            saveConfig(Config()) //Set default Config when no config was found
+            saveConfig(Config()) //Set default de.randombyte.deathpenalty.Config when no config was found
             loadConfig()
         }
     }
