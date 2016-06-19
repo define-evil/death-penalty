@@ -4,7 +4,7 @@ plugins {
 }
 
 group "de.randombyte"
-version "v0.1.2"
+version "v0.2.0"
 
 repositories {
     jcenter()
