@@ -9,7 +9,7 @@ import org.spongepowered.api.config.DefaultConfig
 import org.spongepowered.api.data.key.Keys
 import org.spongepowered.api.data.manipulator.mutable.PotionEffectData
 import org.spongepowered.api.effect.potion.PotionEffect
-import org.spongepowered.api.effect.potion.PotionEffectTypes
+import org.spongepowered.api.effect.potion.PotionEffectType
 import org.spongepowered.api.entity.EntityTypes
 import org.spongepowered.api.entity.living.player.Player
 import org.spongepowered.api.event.Listener
@@ -81,7 +81,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
             }
 
             if (!config.xpReduction.valueUnaffected()) doXpPunishment(player, config.xpReduction)
-            if (config.timeWithBlindness > 0) doBlindnessPunishment(player, config.timeWithBlindness * 20)
+            if (config.potionEffects.size > 0) doPotionEffectsPunishment(player, config.potionEffects)
             saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
         }
     }
@@ -96,7 +96,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         fun String.tryToNumber(func: (Int) -> BigDecimal): BigDecimal = if (this.isNumber()) {
             func.invoke(this.toInt())
         } else {
-            logger.error("Invalid $nodeKey config!")
+            logger.error("Config: Invalid '$nodeKey' config node!")
             oldValue
         }
 
@@ -129,11 +129,25 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
         }
     }
 
-    private fun doBlindnessPunishment(player: Player, ticks: Int) {
-        //https://github.com/SpongePowered/SpongeCommon/issues/794
+    private fun doPotionEffectsPunishment(player: Player, potionEffects: List<PotionEffectConfig>) {
+        //https://github.com/SpongePowered/SpongeCommon/issues/794, waiting for new build
         Sponge.getScheduler().createTaskBuilder().execute { ->
-            player.getOrCreate(PotionEffectData::class.java).ifPresent {
-                player.offer(it.addElement(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, ticks)))
+            player.getOrCreate(PotionEffectData::class.java).ifPresent { potionEffectData ->
+                potionEffects.forEach { potionEffectConfig ->
+                    val optEffect = Sponge.getRegistry().getType(PotionEffectType::class.java, potionEffectConfig.id)
+                    if (optEffect.isPresent) {
+                        player.offer(potionEffectData.addElement(
+                                PotionEffect.builder()
+                                        .potionType(optEffect.get())
+                                        .amplifier(potionEffectConfig.amplifier)
+                                        .duration(potionEffectConfig.duration * 20)
+                                        .particles(potionEffectConfig.showParticles)
+                                        .build()
+                        ))
+                    } else {
+                        logger.warn("Config: PotionEffect ID '${potionEffectConfig.id}' isn't registered!")
+                    }
+                }
             }
         }.delayTicks(8).submit(this)
     }
