@@ -10,6 +10,7 @@ data class Config(
         @Setting(comment = "Relative or fixed => with or without percent sign") val moneyReduction: String = "0%",
         @Setting(comment = "Potion effects applied at death. You can do 'copy & paste' to add new effects.")
             val potionEffects: List<PotionEffectConfig> = listOf(PotionEffectConfig()),
+        @Setting(comment = "Whether it should be logged to the console when someone dies.") val logDeath: Boolean = false,
         @Setting(comment = "Don't modify this value! It is for internal use.") val recentlyDiedPlayers: List<UUID> = emptyList()
 )
 

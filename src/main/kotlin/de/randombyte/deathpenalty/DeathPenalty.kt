@@ -22,8 +22,8 @@ import org.spongepowered.api.event.game.state.GameInitializationEvent
 import org.spongepowered.api.event.service.ChangeServiceProviderEvent
 import org.spongepowered.api.plugin.Plugin
 import org.spongepowered.api.service.economy.EconomyService
+import org.spongepowered.api.world.gamerule.DefaultGameRules
 import java.math.BigDecimal
-import java.util.*
 
 @Plugin(id = DeathPenalty.ID, name = DeathPenalty.NAME, version = DeathPenalty.VERSION, authors = arrayOf(DeathPenalty.AUTHOR))
 class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(sharedRoot = true) val configLoader: ConfigurationLoader<CommentedConfigurationNode>) {
@@ -64,24 +64,24 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     @Listener
     fun onPlayerRespawn(event: RespawnPlayerEvent) {
         val config = loadConfig()
-        fun String.valueUnaffected() = equals(("0%")) || equals("0")
+        fun String.valueAffected() = !equals(("0%")) && !equals("0")
         val player = event.targetEntity
 
         if (config.recentlyDiedPlayers.contains(player.uniqueId)) {
 
-            //Check if financial punishment can be done(economy plugin present?)
-            if (!config.moneyReduction.valueUnaffected()) {
+            if (config.moneyReduction.valueAffected()) {
+                //Check if financial punishment can be done(economy plugin present?)
                 if (economyService == null) {
                     logger.warn("$NAME can't perform financial punishment on just respawned player because there is no " +
                             "no economy plugin present!")
                 } else {
-                    //Now we can do it
-                    doFinancialPunishment(player.uniqueId, config.moneyReduction)
+                    doFinancialPunishment(player, config.moneyReduction, config.logDeath)
                 }
             }
 
-            if (!config.xpReduction.valueUnaffected()) doXpPunishment(player, config.xpReduction)
-            if (config.potionEffects.size > 0) doPotionEffectsPunishment(player, config.potionEffects)
+            if (player.world.gameRules[DefaultGameRules.KEEP_INVENTORY]!!.toBoolean() &&
+                    config.xpReduction.valueAffected()) doXpPunishment(player, config.xpReduction, config.logDeath)
+            if (config.potionEffects.size > 0) doPotionEffectsPunishment(player, config.potionEffects, config.logDeath)
             saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
         }
     }
@@ -109,27 +109,30 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     }
 
     /**
-     * See [getNewValueAfterReduction] for more information on the formatting of the [reductionString].
+     * Must only be executed when [economyService] isn't null. See [getNewValueAfterReduction] for more information on
+     * the formatting of the [reductionString].
      */
-    private fun doFinancialPunishment(player: UUID, reductionString: String) {
-        economyService!!.getOrCreateAccount(player).ifPresent { account ->
+    private fun doFinancialPunishment(player: Player, reductionString: String, logDeath: Boolean) {
+        economyService!!.getOrCreateAccount(player.uniqueId).ifPresent { account ->
             val oldBalance = account.getBalance(economyService!!.defaultCurrency)
             val newBalance = getNewValueAfterReduction(oldBalance, "moneyReduction", reductionString)
             account.setBalance(economyService!!.defaultCurrency, newBalance, Cause.of(NamedCause.source(this)))
+            if (logDeath) logger.info("'${player.name}' has lost ${oldBalance.minus(newBalance).toLong()}${economyService!!.defaultCurrency} at death.")
         }
     }
 
     /**
      * See [getNewValueAfterReduction] for more information on the formatting of the [reductionString].
      */
-    private fun doXpPunishment(player: Player, reductionString: String) {
+    private fun doXpPunishment(player: Player, reductionString: String, logDeath: Boolean) {
         player.get(Keys.TOTAL_EXPERIENCE).ifPresent { xps ->
             val newExperience = getNewValueAfterReduction(BigDecimal(xps), "xpReduction", reductionString)
             player.offer(Keys.TOTAL_EXPERIENCE, newExperience.toInt())
+            if (logDeath) logger.info("'${player.name}' has lost ${xps.minus(newExperience.toInt())} XP's at death.")
         }
     }
 
-    private fun doPotionEffectsPunishment(player: Player, potionEffects: List<PotionEffectConfig>) {
+    private fun doPotionEffectsPunishment(player: Player, potionEffects: List<PotionEffectConfig>, logDeath: Boolean) {
         //https://github.com/SpongePowered/SpongeCommon/issues/794, waiting for new build
         Sponge.getScheduler().createTaskBuilder().execute { ->
             player.getOrCreate(PotionEffectData::class.java).ifPresent { potionEffectData ->
@@ -144,6 +147,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
                                         .particles(potionEffectConfig.showParticles)
                                         .build()
                         ))
+                        if (logDeath) logger.info("'${player.name}' got potion '${potionEffectConfig.id}' after death.")
                     } else {
                         logger.warn("Config: PotionEffect ID '${potionEffectConfig.id}' isn't registered!")
                     }
