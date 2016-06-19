@@ -156,7 +156,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     private fun loadConfig(): Config {
         val config = getRootNode().getValue(TypeToken.of(Config::class.java))
         return if (config != null) config else {
-            saveConfig(Config()) //Set default de.randombyte.deathpenalty.Config when no config was found
+            saveConfig(Config()) //Set default Config when no config was found
             loadConfig()
         }
     }
