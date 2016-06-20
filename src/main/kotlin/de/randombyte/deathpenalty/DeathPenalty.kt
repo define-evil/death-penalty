@@ -69,19 +69,29 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
 
         if (config.recentlyDiedPlayers.contains(player.uniqueId)) {
 
+            val textTemplateParameters = mutableMapOf<String, Any?>()
+
             if (config.moneyReduction.valueAffected()) {
                 //Check if financial punishment can be done(economy plugin present?)
                 if (economyService == null) {
                     logger.warn("$NAME can't perform financial punishment on just respawned player because there is no " +
                             "no economy plugin present!")
                 } else {
-                    doFinancialPunishment(player, config.moneyReduction, config.logDeath)
+                    val lostMoney = doFinancialPunishment(player, config.moneyReduction)
+                    textTemplateParameters["moneyLoss"] = lostMoney.toString()
                 }
             }
 
-            if (player.world.gameRules[DefaultGameRules.KEEP_INVENTORY]!!.toBoolean() &&
-                    config.xpReduction.valueAffected()) doXpPunishment(player, config.xpReduction, config.logDeath)
-            if (config.potionEffects.size > 0) doPotionEffectsPunishment(player, config.potionEffects, config.logDeath)
+            if (player.world.gameRules[DefaultGameRules.KEEP_INVENTORY]!!.toBoolean() && config.xpReduction.valueAffected()) {
+                val lostXp = doXpPunishment(player, config.xpReduction)
+                textTemplateParameters["xpLoss"] = lostXp
+            }
+            if (config.potionEffects.size > 0) {
+                val appliedPotionEffects = doPotionEffectsPunishment(player, config.potionEffects)
+                textTemplateParameters["potionEffects"] = appliedPotionEffects.joinToString(transform = { it.type.id.removePrefix("minecraft:") })
+            }
+
+            if (config.sendDeathMessage) player.sendMessage(config.deathMessage.apply(textTemplateParameters).build())
             saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers - player.uniqueId))
         }
     }
@@ -111,49 +121,57 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     /**
      * Must only be executed when [economyService] isn't null. See [getNewValueAfterReduction] for more information on
      * the formatting of the [reductionString].
+     * @return The amount of lost money
      */
-    private fun doFinancialPunishment(player: Player, reductionString: String, logDeath: Boolean) {
-        economyService!!.getOrCreateAccount(player.uniqueId).ifPresent { account ->
-            val oldBalance = account.getBalance(economyService!!.defaultCurrency)
-            val newBalance = getNewValueAfterReduction(oldBalance, "moneyReduction", reductionString)
-            account.setBalance(economyService!!.defaultCurrency, newBalance, Cause.of(NamedCause.source(this)))
-            if (logDeath) logger.info("'${player.name}' has lost ${oldBalance.minus(newBalance).toLong()}${economyService!!.defaultCurrency} at death.")
+    private fun doFinancialPunishment(player: Player, reductionString: String): BigDecimal {
+        val account = economyService!!.getOrCreateAccount(player.uniqueId).orElseThrow {
+            RuntimeException("Failed to create an economy account for ${player.name}!")
         }
+        val oldBalance = account.getBalance(economyService!!.defaultCurrency)
+        val newBalance = getNewValueAfterReduction(oldBalance, "moneyReduction", reductionString)
+        account.setBalance(economyService!!.defaultCurrency, newBalance, Cause.of(NamedCause.source(this)))
+        return oldBalance.minus(newBalance)
     }
 
     /**
      * See [getNewValueAfterReduction] for more information on the formatting of the [reductionString].
+     * @return The amount of lost XP's
      */
-    private fun doXpPunishment(player: Player, reductionString: String, logDeath: Boolean) {
-        player.get(Keys.TOTAL_EXPERIENCE).ifPresent { xps ->
+    private fun doXpPunishment(player: Player, reductionString: String): Int? {
+        val optXps = player.get(Keys.TOTAL_EXPERIENCE)
+        return if (optXps.isPresent) {
+            val xps = optXps.get()
             val newExperience = getNewValueAfterReduction(BigDecimal(xps), "xpReduction", reductionString)
             player.offer(Keys.TOTAL_EXPERIENCE, newExperience.toInt())
-            if (logDeath) logger.info("'${player.name}' has lost ${xps.minus(newExperience.toInt())} XP's at death.")
-        }
+            xps.minus(newExperience.toInt())
+        } else null
     }
 
-    private fun doPotionEffectsPunishment(player: Player, potionEffects: List<PotionEffectConfig>, logDeath: Boolean) {
+    private fun doPotionEffectsPunishment(player: Player, potionEffectConfigs: List<PotionEffectConfig>): List<PotionEffect> {
+        val potionEffects = potionEffectConfigs.mapNotNull { potionEffectConfig ->
+            val optEffect = Sponge.getRegistry().getType(PotionEffectType::class.java, potionEffectConfig.id)
+            if (optEffect.isPresent) {
+                return@mapNotNull PotionEffect.builder()
+                        .potionType(optEffect.get())
+                        .amplifier(potionEffectConfig.amplifier)
+                        .duration(potionEffectConfig.duration * 20)
+                        .particles(potionEffectConfig.showParticles)
+                        .build()
+            } else {
+                logger.warn("Config: PotionEffect ID '${potionEffectConfig.id}' isn't registered!")
+                return@mapNotNull null
+            }
+        }
+
         //https://github.com/SpongePowered/SpongeCommon/issues/794, waiting for new build
         Sponge.getScheduler().createTaskBuilder().execute { ->
             player.getOrCreate(PotionEffectData::class.java).ifPresent { potionEffectData ->
-                potionEffects.forEach { potionEffectConfig ->
-                    val optEffect = Sponge.getRegistry().getType(PotionEffectType::class.java, potionEffectConfig.id)
-                    if (optEffect.isPresent) {
-                        player.offer(potionEffectData.addElement(
-                                PotionEffect.builder()
-                                        .potionType(optEffect.get())
-                                        .amplifier(potionEffectConfig.amplifier)
-                                        .duration(potionEffectConfig.duration * 20)
-                                        .particles(potionEffectConfig.showParticles)
-                                        .build()
-                        ))
-                        if (logDeath) logger.info("'${player.name}' got potion '${potionEffectConfig.id}' after death.")
-                    } else {
-                        logger.warn("Config: PotionEffect ID '${potionEffectConfig.id}' isn't registered!")
-                    }
-                }
+                potionEffects.forEach { potionEffectData.addElement(it) }
+                player.offer(potionEffectData)
             }
         }.delayTicks(8).submit(this)
+
+        return potionEffects
     }
 
     private fun getRootNode() = configLoader.load()
