@@ -22,6 +22,7 @@ data class Config(
                 " XP's and got the potion effect(s) ",
                 TextTemplate.arg("potionEffects").optional(true).defaultValue(Text.of("[Not provided]"))
         ),
+        @Setting(comment = "Ways to die when this plugin should take action.") val deathTypes: DeathTypes = DeathTypes(),
         @Setting(comment = "Don't modify this value! It is for internal use.") val recentlyDiedPlayers: List<UUID> = emptyList()
 )
 
@@ -31,4 +32,9 @@ data class PotionEffectConfig(
         @Setting(comment = "Duration in seconds") val duration: Int = 180,
         @Setting val amplifier: Int = 1,
         @Setting val showParticles: Boolean = false
+)
+
+@ConfigSerializable
+data class DeathTypes(
+        @Setting val pvp: Boolean = false
 )

@@ -30,7 +30,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     companion object {
         const val ID = "deathpenalty"
         const val NAME = "DeathPenalty"
-        const val VERSION = "v0.2.0"
+        const val VERSION = "v0.3.0"
         const val AUTHOR = "RandomByte"
     }
 
@@ -58,6 +58,11 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     fun onPlayerDeath(event: DestructEntityEvent.Death) {
         if (!event.targetEntity.type.equals(EntityTypes.PLAYER)) return
         val config = loadConfig()
+        val rootCause = event.cause.root()
+        //Check if not the same player is the root cause(e.g. arrow shooting in the air to get damage)
+        val isPlayerRootCause = rootCause is Player
+        val isOtherPlayerRootCause = rootCause is Player && !rootCause.uniqueId.equals(event.targetEntity.uniqueId)
+        if (isPlayerRootCause && !isOtherPlayerRootCause && !config.deathTypes.pvp) return
         saveConfig(config.copy(recentlyDiedPlayers = config.recentlyDiedPlayers + event.targetEntity.uniqueId))
     }
 
