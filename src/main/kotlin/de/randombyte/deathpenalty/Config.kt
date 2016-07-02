@@ -22,7 +22,7 @@ data class Config(
                 " XP's and got the potion effect(s) ",
                 TextTemplate.arg("potionEffects").optional(true).defaultValue(Text.of("[Not provided]"))
         ),
-        @Setting(comment = "Ways to die when this plugin should NOT take action.") val deathTypes: DeathTypes = DeathTypes(),
+        @Setting(comment = "Ways to die when this plugin should NOT take any action.") val deathTypes: DeathTypes = DeathTypes(),
         @Setting(comment = "Don't modify this value! It is for internal use.") val recentlyDiedPlayers: List<UUID> = emptyList()
 )
 
