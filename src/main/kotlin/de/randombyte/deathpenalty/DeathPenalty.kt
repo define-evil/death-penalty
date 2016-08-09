@@ -30,7 +30,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     companion object {
         const val ID = "deathpenalty"
         const val NAME = "DeathPenalty"
-        const val VERSION = "v0.3.2"
+        const val VERSION = "v1.0"
         const val AUTHOR = "RandomByte"
     }
 
