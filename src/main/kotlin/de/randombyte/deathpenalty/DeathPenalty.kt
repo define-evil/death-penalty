@@ -171,13 +171,10 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
             }
         }
 
-        //https://github.com/SpongePowered/SpongeCommon/issues/794, waiting for new build
-        Sponge.getScheduler().createTaskBuilder().execute { ->
-            player.getOrCreate(PotionEffectData::class.java).ifPresent { potionEffectData ->
-                potionEffects.forEach { potionEffectData.addElement(it) }
-                player.offer(potionEffectData)
-            }
-        }.delayTicks(8).submit(this)
+        player.getOrCreate(PotionEffectData::class.java).ifPresent { potionEffectData ->
+            potionEffects.forEach { potionEffectData.addElement(it) }
+            player.offer(potionEffectData)
+        }
 
         return potionEffects
     }
