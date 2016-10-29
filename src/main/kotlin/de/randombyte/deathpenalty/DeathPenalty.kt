@@ -1,4 +1,5 @@
 package de.randombyte.deathpenalty
+
 import com.google.common.reflect.TypeToken
 import com.google.inject.Inject
 import ninja.leaping.configurate.commented.CommentedConfigurationNode
@@ -30,7 +31,7 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
     companion object {
         const val ID = "deathpenalty"
         const val NAME = "DeathPenalty"
-        const val VERSION = "v1.0"
+        const val VERSION = "v1.1"
         const val AUTHOR = "RandomByte"
     }
 
@@ -50,17 +51,17 @@ class DeathPenalty @Inject constructor(val logger: Logger, @DefaultConfig(shared
 
     @Listener
     fun onNewEconomyService(event: ChangeServiceProviderEvent) {
-        if (event.service.equals(EconomyService::class.java))
+        if (event.service == EconomyService::class.java)
             economyService = event.newProviderRegistration.provider as EconomyService
     }
 
     @Listener
     fun onPlayerDeath(event: DestructEntityEvent.Death) {
-        if (!event.targetEntity.type.equals(EntityTypes.PLAYER)) return
+        if (event.targetEntity.type != EntityTypes.PLAYER) return
         val config = loadConfig()
 
         val firstPlayerCause = event.cause.first(Player::class.java)
-        val pvpDeath = firstPlayerCause.isPresent && !firstPlayerCause.get().uniqueId.equals(event.targetEntity.uniqueId)
+        val pvpDeath = firstPlayerCause.isPresent && firstPlayerCause.get().uniqueId != event.targetEntity.uniqueId
 
         if (pvpDeath && config.deathTypes.pvp) {
             return

@@ -1,15 +1,15 @@
 plugins {
-    id "com.zoltu.kotlin" version "1.0.3"
-    id "com.qixalite.spongestart" version "1.4.9"
+    id "com.zoltu.kotlin" version "1.0.4"
+    id "com.qixalite.spongestart" version "1.5.2"
 }
 
 group "de.randombyte"
-version "v1.0"
+version "v1.1"
 
 repositories {
     jcenter()
     maven { url "https://repo.spongepowered.org/maven/" }
-    maven { url 'https://jitpack.io' }
+    maven { url "https://jitpack.io" }
 }
 
 spongestart {
@@ -21,8 +21,8 @@ configurations {
     compile.extendsFrom shade
 }
 
-ext.spongeApiVersion = '5.0.0-SNAPSHOT'
-ext.kotlinVersion = '1.0.3'
+ext.spongeApiVersion = "5.0.0"
+ext.kotlinVersion = "1.0.4"
 
 dependencies {
     shade "org.jetbrains.kotlin:kotlin-runtime:$kotlinVersion"
@@ -35,7 +35,7 @@ dependencies {
 jar {
     configurations.shade.each { dep ->
         from(project.zipTree(dep)) {
-            exclude 'META-INF', 'META-INF/**'
+            exclude "META-INF", "META-INF/**"
         }
     }
 }
